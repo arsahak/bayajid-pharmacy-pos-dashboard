@@ -1,10 +1,13 @@
 "use client";
 import { useSidebar } from "@/lib/SidebarContext";
+import { useLanguage } from "@/lib/LanguageContext";
+import { getTranslation } from "@/lib/translations";
 import { getAllWebOrders, confirmWebOrder, cancelWebOrder } from "@/app/actions/webOrders";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import ProtectedRoute from "@/component/ProtectedRoute";
+import WebOrdersListSkeleton from "./WebOrdersListSkeleton";
 import {
   MdSearch,
   MdVisibility,
@@ -32,6 +35,8 @@ const STATUS_OPTIONS = ["all", "pending", "confirmed", "processing", "completed"
 
 const WebOrdersList = () => {
   const { isDarkMode } = useSidebar();
+  const { language } = useLanguage();
+  const t = (key: string) => getTranslation(key, language);
   const router = useRouter();
   const [orders, setOrders] = useState<WebOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +117,23 @@ const WebOrdersList = () => {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "pending":
+        return t("statusPending");
+      case "confirmed":
+        return t("statusConfirmed");
+      case "processing":
+        return t("statusProcessing");
+      case "completed":
+        return t("statusCompleted");
+      case "cancelled":
+        return t("statusCancelled");
+      default:
+        return status;
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending":
@@ -131,25 +153,31 @@ const WebOrdersList = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-amber-100 text-amber-700 border-amber-300";
+        return isDarkMode
+          ? "bg-amber-900/30 text-amber-400 border-amber-800"
+          : "bg-amber-100 text-amber-700 border-amber-300";
       case "confirmed":
       case "processing":
-        return "bg-blue-100 text-blue-700 border-blue-300";
+        return isDarkMode
+          ? "bg-blue-900/30 text-blue-400 border-blue-800"
+          : "bg-blue-100 text-blue-700 border-blue-300";
       case "completed":
-        return "bg-green-100 text-green-700 border-green-300";
+        return isDarkMode
+          ? "bg-green-900/30 text-green-400 border-green-800"
+          : "bg-green-100 text-green-700 border-green-300";
       case "cancelled":
-        return "bg-red-100 text-red-700 border-red-300";
+        return isDarkMode
+          ? "bg-red-900/30 text-red-400 border-red-800"
+          : "bg-red-100 text-red-700 border-red-300";
       default:
-        return "bg-gray-100 text-gray-700 border-gray-300";
+        return isDarkMode
+          ? "bg-gray-700 text-gray-300 border-gray-600"
+          : "bg-gray-100 text-gray-700 border-gray-300";
     }
   };
 
-  if (!mounted) {
-    return (
-      <div className={`min-h-screen p-6 ${isDarkMode ? "bg-gray-950" : "bg-slate-50"}`}>
-        <div className="max-w-[1920px] mx-auto animate-pulse h-96 rounded-2xl bg-gray-200 dark:bg-gray-800" />
-      </div>
-    );
+  if (!mounted || loading) {
+    return <WebOrdersListSkeleton isDarkMode={isDarkMode} />;
   }
 
   return (
@@ -159,11 +187,9 @@ const WebOrdersList = () => {
           {/* Header */}
           <div className="mb-6">
             <h1 className={`text-3xl font-bold mb-2 ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>
-              Website Orders
+              {t("websiteOrders")}
             </h1>
-            <p className={isDarkMode ? "text-gray-400" : "text-gray-600"}>
-              Orders placed by customers on the pharmacy website
-            </p>
+            <p className={isDarkMode ? "text-gray-400" : "text-gray-600"}>{t("websiteOrdersDesc")}</p>
           </div>
 
           {/* Filters */}
@@ -179,7 +205,7 @@ const WebOrdersList = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                placeholder="Search by order number, customer name, or phone..."
+                placeholder={t("searchWebOrdersPlaceholder")}
                 className={`w-full pl-10 pr-4 py-2.5 rounded-lg border ${
                   isDarkMode
                     ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400"
@@ -199,7 +225,7 @@ const WebOrdersList = () => {
             >
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
-                  {s === "all" ? "All Statuses" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  {s === "all" ? t("allStatuses") : getStatusLabel(s)}
                 </option>
               ))}
             </select>
@@ -207,7 +233,7 @@ const WebOrdersList = () => {
               onClick={handleSearch}
               className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors"
             >
-              Search
+              {t("searchShort")}
             </button>
           </div>
 
@@ -225,28 +251,20 @@ const WebOrdersList = () => {
                       isDarkMode ? "bg-gray-900/50 text-gray-400" : "bg-gray-50/80 text-gray-500"
                     }`}
                   >
-                    <th className="px-6 py-4">Order No</th>
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Customer</th>
-                    <th className="px-6 py-4">Items</th>
-                    <th className="px-6 py-4 text-right">Total</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-center">Actions</th>
+                    <th className="px-6 py-4">{t("orderNo")}</th>
+                    <th className="px-6 py-4">{t("date")}</th>
+                    <th className="px-6 py-4">{t("customer")}</th>
+                    <th className="px-6 py-4">{t("items")}</th>
+                    <th className="px-6 py-4 text-right">{t("total")}</th>
+                    <th className="px-6 py-4">{t("status")}</th>
+                    <th className="px-6 py-4 text-center">{t("actions")}</th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${isDarkMode ? "divide-gray-700" : "divide-gray-100"}`}>
-                  {loading ? (
+                  {orders.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-8">
-                        <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : orders.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="text-center py-8">
-                        <p className={isDarkMode ? "text-gray-400" : "text-gray-600"}>No website orders found</p>
+                        <p className={isDarkMode ? "text-gray-400" : "text-gray-600"}>{t("noWebOrdersFound")}</p>
                       </td>
                     </tr>
                   ) : (
@@ -282,7 +300,7 @@ const WebOrdersList = () => {
                           <div className="flex items-center gap-1.5">
                             <MdShoppingBag className="text-gray-400" />
                             <span className={isDarkMode ? "text-gray-300" : "text-gray-700"}>
-                              {order.items.length} item(s)
+                              {order.items.length} {t("items")}
                             </span>
                           </div>
                         </td>
@@ -298,7 +316,7 @@ const WebOrdersList = () => {
                             )}`}
                           >
                             {getStatusIcon(order.status)}
-                            {order.status.toUpperCase()}
+                            {getStatusLabel(order.status).toUpperCase()}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -310,7 +328,7 @@ const WebOrdersList = () => {
                                   ? "hover:bg-gray-600 text-gray-400 hover:text-blue-400"
                                   : "hover:bg-blue-50 text-gray-400 hover:text-blue-600"
                               }`}
-                              title="View"
+                              title={t("view")}
                             >
                               <MdVisibility size={18} />
                             </button>
@@ -323,7 +341,7 @@ const WebOrdersList = () => {
                                     ? "hover:bg-gray-600 text-gray-400 hover:text-green-400"
                                     : "hover:bg-green-50 text-gray-400 hover:text-green-600"
                                 }`}
-                                title="Confirm"
+                                title={t("confirm")}
                               >
                                 <MdCheckCircle size={18} />
                               </button>
@@ -337,7 +355,7 @@ const WebOrdersList = () => {
                                     ? "hover:bg-gray-600 text-gray-400 hover:text-red-400"
                                     : "hover:bg-red-50 text-gray-400 hover:text-red-600"
                                 }`}
-                                title="Cancel"
+                                title={t("cancel")}
                               >
                                 <MdCancel size={18} />
                               </button>
@@ -359,11 +377,12 @@ const WebOrdersList = () => {
                 }`}
               >
                 <div className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-700"}`}>
-                  Showing <span className="font-semibold">{(pagination.page - 1) * pagination.limit + 1}</span> to{" "}
+                  {t("showing")} <span className="font-semibold">{(pagination.page - 1) * pagination.limit + 1}</span>{" "}
+                  {t("to")}{" "}
                   <span className="font-semibold">
                     {Math.min(pagination.page * pagination.limit, pagination.total)}
                   </span>{" "}
-                  of <span className="font-semibold">{pagination.total}</span> orders
+                  {t("of")} <span className="font-semibold">{pagination.total}</span> {t("orders")}
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -373,7 +392,7 @@ const WebOrdersList = () => {
                       isDarkMode ? "bg-gray-700 text-gray-300 hover:bg-gray-600" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
                     }`}
                   >
-                    Previous
+                    {t("previous")}
                   </button>
                   <button
                     onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
@@ -382,7 +401,7 @@ const WebOrdersList = () => {
                       isDarkMode ? "bg-gray-700 text-gray-300 hover:bg-gray-600" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
                     }`}
                   >
-                    Next
+                    {t("next")}
                   </button>
                 </div>
               </div>
