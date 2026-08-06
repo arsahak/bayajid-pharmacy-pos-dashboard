@@ -24,7 +24,7 @@ import {
   IoMdSunny,
   IoMdTrendingUp,
 } from "react-icons/io";
-import { MdPublic, MdStore } from "react-icons/md";
+import { MdPublic, MdShoppingCart, MdStore } from "react-icons/md";
 import { RxDoubleArrowLeft } from "react-icons/rx";
 
 interface MenuItem {
@@ -152,30 +152,12 @@ const getMenuItems = (language: string): MenuItem[] => [
       },
     ],
   },
-  // {
-  //   icon: <MdShoppingCart className="w-5 h-5" />,
-  //   label: getTranslation("orders", language),
-  //   path: "/orders",
-  //   permission: "canViewOrders",
-  //   expandable: true,
-  //   subItems: [
-  //     {
-  //       label: getTranslation("allOrders", language),
-  //       path: "/orders",
-  //       permission: "canViewOrders",
-  //     },
-  //     {
-  //       label: getTranslation("pendingOrders", language),
-  //       path: "/orders/pending",
-  //       permission: "canViewOrders",
-  //     },
-  //     {
-  //       label: getTranslation("completedOrders", language),
-  //       path: "/orders/completed",
-  //       permission: "canViewOrders",
-  //     },
-  //   ],
-  // },
+  {
+    icon: <MdShoppingCart className="w-5 h-5" />,
+    label: getTranslation("orders", language),
+    path: "/website-orders",
+    permission: "canViewOrders",
+  },
   {
     icon: <IoMdPeople className="w-5 h-5" />,
     label: getTranslation("customers", language),
