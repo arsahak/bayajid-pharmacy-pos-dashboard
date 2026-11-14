@@ -62,6 +62,32 @@ export async function getAllProducts(params?: {
 }
 
 /**
+ * GET /api/products/pos-catalog - POS catalogue (served from the backend cache).
+ * Pass the serverTime of the previous sync to receive only changed/removed products.
+ */
+export async function getPosCatalog(since?: string) {
+  try {
+    const headers = await getAuthHeaders();
+    const qs = since ? `?since=${encodeURIComponent(since)}` : "";
+    const response = await fetch(`${API_URL}/api/products/pos-catalog${qs}`, {
+      headers,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      return { success: false, error: error.message || "Failed to fetch POS catalogue" };
+    }
+
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error) {
+    console.error("Get POS catalogue error:", error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/**
  * GET /api/products/alerts/expiring - Get products expiring soon
  */
 export async function getExpiringProducts(options?: { countOnly?: boolean }) {

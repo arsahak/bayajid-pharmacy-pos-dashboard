@@ -1,12 +1,14 @@
 "use client";
 
 import { createCustomer, getAllCustomers } from "@/app/actions/customers";
-import { getAllProducts } from "@/app/actions/product";
+import { getPosCatalog } from "@/app/actions/product";
 import { createSale } from "@/app/actions/sales";
 import { getAllStores } from "@/app/actions/stores";
+import { loadCatalog, RawPosProduct, saveCatalog } from "@/lib/posCatalogCache";
 import { useSidebar } from "@/lib/SidebarContext";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { io } from "socket.io-client";
 import { InvoiceModal } from "./InvoiceModal";
 import { POSCart } from "./POSCart";
 import { POSHeader } from "./POSHeader";
@@ -14,6 +16,52 @@ import { POSProducts } from "./POSProducts";
 import { SourcedItemModal } from "./SourcedItemModal";
 import { CartItem, Customer, HeldOrder, Invoice, Product } from "./types";
 
+
+// Map a backend product to the POS Product shape
+const transformPosProduct = (p: Record<string, any>): Product => {
+  // Handle location - could be object or JSON string
+  let shelfValue = "";
+  if (p.location) {
+    if (typeof p.location === "string") {
+      try {
+        const loc = JSON.parse(p.location);
+        shelfValue = loc.shelf || "";
+      } catch {
+        shelfValue = "";
+      }
+    } else if (typeof p.location === "object") {
+      shelfValue = p.location.shelf || "";
+    }
+  }
+
+  return {
+    id: p._id,
+    name: p.name,
+    price: p.price || 0,
+    cost: p.cost,
+    discountPrice: p.discountPrice,
+    discountPercentage: p.discountPercentage,
+    category: p.category || "General",
+    stock: p.stock || 0,
+    sku: p.sku || "",
+    barcode: p.barcode || p.sku || "",
+    isPrescription: p.isPrescription || false,
+    isControlled: p.isControlled || false,
+    genericName: p.genericName,
+    dosage: p.dosage,
+    strength: p.strength,
+    unit: p.unit || "pcs",
+    manufacturer: p.manufacturer,
+    hasExpiry: p.hasExpiry,
+    expiryDate: p.expiryDate,
+    batchNumber: p.batchNumber,
+    taxRate: p.taxRate || 0,
+    isLowStock: p.stock <= (p.reorderLevel || 10),
+    reorderLevel: p.reorderLevel,
+    image: p.mainImage?.thumbUrl || p.mainImage?.url,
+    shelf: shelfValue,
+  };
+};
 
 const PointOFSaleDetilasPage = () => {
   const { isDarkMode } = useSidebar();
@@ -181,101 +229,134 @@ const PointOFSaleDetilasPage = () => {
     fetchStore();
   }, []);
 
-  // Fetch products
+  // Products: shown instantly from the browser cache, then only changed products
+  // are fetched from the backend. The backend signals every product change
+  // (sale, stock adjustment, edit, delete) over Socket.IO and we re-sync.
+  const productMapRef = useRef<Map<string, RawPosProduct>>(new Map());
+  const sinceRef = useRef<string | null>(null);
+  const syncStateRef = useRef({ running: false, again: false });
+
+  const showProducts = useCallback(() => {
+    const list = [...productMapRef.current.values()]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      )
+      .map(transformPosProduct);
+    setProducts(list);
+    setCategories(
+      ([...new Set(list.map((p) => p.category))].filter(Boolean) as string[]).sort()
+    );
+  }, []);
+
+  const syncProducts = useCallback(async (): Promise<boolean> => {
+    const st = syncStateRef.current;
+    if (st.running) {
+      st.again = true; // run once more when the current sync finishes
+      return true;
+    }
+    st.running = true;
+    try {
+      const result = await getPosCatalog(sinceRef.current || undefined);
+      if (!result.success || !result.data) return false;
+      const data = result.data as {
+        full: boolean;
+        products?: RawPosProduct[];
+        changed?: RawPosProduct[];
+        removed?: string[];
+        serverTime: string;
+      };
+
+      let changed = false;
+      if (data.full) {
+        productMapRef.current = new Map((data.products || []).map((p) => [p._id, p]));
+        changed = true;
+      } else {
+        const map = productMapRef.current;
+        for (const p of data.changed || []) {
+          map.set(p._id, p);
+          changed = true;
+        }
+        for (const id of data.removed || []) {
+          if (map.delete(id)) changed = true;
+        }
+      }
+      sinceRef.current = data.serverTime;
+
+      if (changed) {
+        showProducts();
+        saveCatalog(data.serverTime, [...productMapRef.current.values()]);
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      st.running = false;
+      if (st.again) {
+        st.again = false;
+        syncProducts();
+      }
+    }
+  }, [showProducts]);
+
+  // First load: cache first (instant), then sync with the backend
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setIsLoadingProducts(true);
-        
-        // 1. Fast Initial Load: Get first 200 products quickly
-        const initialResult = await getAllProducts({ limit: 200, view: "pos" });
+    let cancelled = false;
+    (async () => {
+      const cached = await loadCatalog();
+      if (cancelled) return;
+      if (cached && cached.products.length > 0) {
+        productMapRef.current = new Map(cached.products.map((p) => [p._id, p]));
+        sinceRef.current = cached.since;
+        showProducts();
+        setIsLoadingProducts(false); // usable right away
+      }
 
-        if (!initialResult.success || !initialResult.data?.products) {
-          throw new Error("Failed to fetch products");
-        }
-
-        const transformProduct = (p: Record<string, any>) => {
-          // Handle location - could be object or JSON string
-          let shelfValue = "";
-          if (p.location) {
-            if (typeof p.location === "string") {
-              try {
-                const loc = JSON.parse(p.location);
-                shelfValue = loc.shelf || "";
-              } catch {
-                shelfValue = "";
-              }
-            } else if (typeof p.location === "object") {
-              shelfValue = p.location.shelf || "";
-            }
-          }
-
-          return {
-            id: p._id,
-            name: p.name,
-            price: p.price || 0,
-            cost: p.cost,
-            discountPrice: p.discountPrice,
-            discountPercentage: p.discountPercentage,
-            category: p.category || "General",
-            stock: p.stock || 0,
-            sku: p.sku || "",
-            barcode: p.barcode || p.sku || "",
-            isPrescription: p.isPrescription || false,
-            isControlled: p.isControlled || false,
-            genericName: p.genericName,
-            dosage: p.dosage,
-            strength: p.strength,
-            unit: p.unit || "pcs",
-            manufacturer: p.manufacturer,
-            hasExpiry: p.hasExpiry,
-            expiryDate: p.expiryDate,
-            batchNumber: p.batchNumber,
-            taxRate: p.taxRate || 0,
-            isLowStock: p.stock <= (p.reorderLevel || 10),
-            reorderLevel: p.reorderLevel,
-            image: p.mainImage?.thumbUrl || p.mainImage?.url,
-            shelf: shelfValue,
-          };
-        };
-
-        const initialProducts = initialResult.data.products.map(transformProduct);
-        setProducts(initialProducts);
-
-        // Extract categories from initial batch
-        const updateCategories = (prodList: any[]) => {
-          const uniqueCategories = [
-            ...new Set(prodList.map((p: any) => p.category)),
-          ].filter(Boolean) as string[];
-          setCategories(uniqueCategories.sort());
-        };
-        updateCategories(initialProducts);
-
-        setIsLoadingProducts(false); // Stop loader so UI becomes interactive
-
-        // 2. Background Load: Fetch the rest silently
-        const totalCount = initialResult.data.pagination?.total || 0;
-        if (initialProducts.length < totalCount) {
-          // Fetch remaining - using a small timeout to let the UI render first
-          setTimeout(async () => {
-             const remainingResult = await getAllProducts({ limit: 10000, view: "pos" });
-             if (remainingResult.success && remainingResult.data?.products) {
-               const allProducts = remainingResult.data.products.map(transformProduct);
-               setProducts(allProducts);
-               updateCategories(allProducts);
-             }
-          }, 100);
-        }
-
-      } catch {
+      const ok = await syncProducts();
+      if (cancelled) return;
+      if (!ok && !cached) {
         toast.error("Failed to load products");
         setProducts([]);
-        setIsLoadingProducts(false);
       }
+      setIsLoadingProducts(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showProducts, syncProducts]);
+
+  // Live updates: socket signal, tab becoming visible, and a 60s fallback
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const resync = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        syncProducts();
+      }, 200);
     };
 
-    fetchProducts();
-  }, []);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    const socket = apiUrl ? io(apiUrl, { transports: ["websocket", "polling"] }) : null;
+    let connectedBefore = false;
+    socket?.on("products:changed", resync);
+    socket?.on("connect", () => {
+      if (connectedBefore) resync(); // catch up on changes missed while disconnected
+      connectedBefore = true;
+    });
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") resync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const interval = setInterval(resync, 60_000);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      socket?.disconnect();
+    };
+  }, [syncProducts]);
 
   // Barcode scanner listener
   useEffect(() => {
@@ -670,6 +751,7 @@ const PointOFSaleDetilasPage = () => {
       }
 
       const savedSale = saleResult.data;
+      syncProducts(); // stock changed: pull the updated products
       console.log("Sale created successfully:", savedSale);
 
       // Create invoice
@@ -814,6 +896,7 @@ const PointOFSaleDetilasPage = () => {
       }
 
       const savedSale = saleResult.data;
+      syncProducts(); // stock changed: pull the updated products
 
       const invoice: Invoice = {
         invoiceNumber: savedSale.saleNo,
