@@ -188,7 +188,7 @@ const PointOFSaleDetilasPage = () => {
         setIsLoadingProducts(true);
         
         // 1. Fast Initial Load: Get first 200 products quickly
-        const initialResult = await getAllProducts({ limit: 200 });
+        const initialResult = await getAllProducts({ limit: 200, view: "pos" });
 
         if (!initialResult.success || !initialResult.data?.products) {
           throw new Error("Failed to fetch products");
@@ -258,7 +258,7 @@ const PointOFSaleDetilasPage = () => {
         if (initialProducts.length < totalCount) {
           // Fetch remaining - using a small timeout to let the UI render first
           setTimeout(async () => {
-             const remainingResult = await getAllProducts({ limit: 10000 });
+             const remainingResult = await getAllProducts({ limit: 10000, view: "pos" });
              if (remainingResult.success && remainingResult.data?.products) {
                const allProducts = remainingResult.data.products.map(transformProduct);
                setProducts(allProducts);

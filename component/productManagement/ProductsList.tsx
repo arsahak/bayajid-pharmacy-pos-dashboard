@@ -154,9 +154,10 @@ export default function ProductsList() {
   const loadAlerts = useCallback(async () => {
     try {
       const [expiringRes, expiredRes, lowStockRes] = await Promise.all([
-        getExpiringProducts(),
-        getExpiredProducts(),
-        getLowStockProducts(),
+        // Only the counts are shown here, so don't download the product lists
+        getExpiringProducts({ countOnly: true }),
+        getExpiredProducts({ countOnly: true }),
+        getLowStockProducts({ countOnly: true }),
       ]);
 
       if (expiringRes.success && expiringRes.data) {

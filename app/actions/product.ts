@@ -27,6 +27,8 @@ export async function getAllProducts(params?: {
   inStock?: boolean;
   expiring?: boolean;
   expired?: boolean;
+  /** "pos" = light catalogue for the POS screen (fewer fields, no populate) */
+  view?: "pos";
 }) {
   try {
     const headers = await getAuthHeaders();
@@ -41,6 +43,7 @@ export async function getAllProducts(params?: {
     if (params?.inStock !== undefined) queryParams.append("inStock", params.inStock.toString());
     if (params?.expiring !== undefined) queryParams.append("expiring", params.expiring.toString());
     if (params?.expired !== undefined) queryParams.append("expired", params.expired.toString());
+    if (params?.view) queryParams.append("view", params.view);
 
     const url = `${API_URL}/api/products${queryParams.toString() ? `?${queryParams}` : ""}`;
     const response = await fetch(url, { headers, cache: "no-store" });
@@ -61,10 +64,11 @@ export async function getAllProducts(params?: {
 /**
  * GET /api/products/alerts/expiring - Get products expiring soon
  */
-export async function getExpiringProducts() {
+export async function getExpiringProducts(options?: { countOnly?: boolean }) {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/api/products/alerts/expiring`, { headers });
+    const qs = options?.countOnly ? "?countOnly=true" : "";
+    const response = await fetch(`${API_URL}/api/products/alerts/expiring${qs}`, { headers });
 
     if (!response.ok) {
       const error = await response.json();
@@ -82,10 +86,11 @@ export async function getExpiringProducts() {
 /**
  * GET /api/products/alerts/expired - Get products that have already expired
  */
-export async function getExpiredProducts() {
+export async function getExpiredProducts(options?: { countOnly?: boolean }) {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/api/products/alerts/expired`, { headers });
+    const qs = options?.countOnly ? "?countOnly=true" : "";
+    const response = await fetch(`${API_URL}/api/products/alerts/expired${qs}`, { headers });
 
     if (!response.ok) {
       const error = await response.json();
@@ -103,10 +108,11 @@ export async function getExpiredProducts() {
 /**
  * GET /api/products/alerts/low-stock - Get products with low stock
  */
-export async function getLowStockProducts() {
+export async function getLowStockProducts(options?: { countOnly?: boolean }) {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/api/products/alerts/low-stock`, { headers });
+    const qs = options?.countOnly ? "?countOnly=true" : "";
+    const response = await fetch(`${API_URL}/api/products/alerts/low-stock${qs}`, { headers });
 
     if (!response.ok) {
       const error = await response.json();
