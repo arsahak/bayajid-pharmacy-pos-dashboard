@@ -89,24 +89,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow p-8 max-w-2xl w-full mx-6">
+    <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-2xl shadow dark:shadow-black/40 border border-transparent dark:border-gray-800 p-8 max-w-2xl w-full mx-6">
       {/* Main Title */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
           {getTranslation("genflyoPosSystem", language)}
         </h1>
-        <p className="text-gray-600 text-sm">
+        <p className="text-gray-600 dark:text-gray-400 text-sm">
           {getTranslation("signInToContinue", language)}
         </p>
       </div>
 
       {/* Account Locked Warning */}
       {isLocked && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg flex items-start gap-3">
           <IoMdLock className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-red-800">Account Locked</p>
-            <p className="text-xs text-red-600 mt-1">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-300">Account Locked</p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
               Your account has been temporarily locked due to multiple failed
               login attempts. Please try again later.
             </p>
@@ -116,13 +116,13 @@ export default function LoginPage() {
 
       {/* Error Message Display */}
       {errorMessage && !isLocked && (
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
+        <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-200 dark:border-yellow-900 rounded-lg flex items-start gap-3">
           <IoMdAlert className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-yellow-800">
+            <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
               Authentication Error
             </p>
-            <p className="text-xs text-yellow-600 mt-1">{errorMessage}</p>
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">{errorMessage}</p>
           </div>
         </div>
       )}
@@ -163,7 +163,7 @@ export default function LoginPage() {
       {/* Login Form */}
       <form onSubmit={handleLogin} className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             {getTranslation("email", language)}
           </label>
           <input
@@ -172,13 +172,13 @@ export default function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={isLocked}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="w-full px-4 py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-gray-800/60 disabled:cursor-not-allowed"
             placeholder="admin@pos.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             {getTranslation("password", language)}
           </label>
           <div className="relative">
@@ -188,13 +188,13 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={isLocked}
-              className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3 pr-12 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-gray-800/60 disabled:cursor-not-allowed"
               placeholder="••••••••"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 disabled:cursor-not-allowed"
               disabled={isLocked}
             >
               {showPassword ? (
@@ -220,8 +220,8 @@ export default function LoginPage() {
       </form>
 
       {/* Footer Info */}
-      <div className="mt-6 pt-6 border-t border-gray-200">
-        <p className="text-center text-xs text-gray-500">
+      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">
           {getTranslation("allRightsReserved", language)}
         </p>
       </div>

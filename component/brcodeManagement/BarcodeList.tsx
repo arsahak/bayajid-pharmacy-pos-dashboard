@@ -60,11 +60,12 @@ export default function BarcodeList({
     printBarcode(barcode, productName, price);
   };
 
-  const filteredBarcodes = initialBarcodes.filter(
-    (b) =>
-      b.barcode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.productId.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.productId.sku.toLowerCase().includes(searchQuery.toLowerCase())
+  const query = searchQuery.trim().toLowerCase();
+  // Some products have no SKU (or the product was deleted), so guard every field
+  const filteredBarcodes = initialBarcodes.filter((b) =>
+    [b.barcode, b.productId?.name, b.productId?.sku].some((field) =>
+      (field ?? "").toLowerCase().includes(query)
+    )
   );
 
   return (
@@ -216,13 +217,13 @@ export default function BarcodeList({
                       }`}
                     >
                       <div>
-                        <p className="font-medium">{barcode.productId.name}</p>
+                        <p className="font-medium">{barcode.productId?.name ?? "—"}</p>
                         <p
                           className={`text-sm ${
                             isDarkMode ? "text-gray-500" : "text-gray-500"
                           }`}
                         >
-                          SKU: {barcode.productId.sku}
+                          SKU: {barcode.productId?.sku || "—"}
                         </p>
                       </div>
                     </td>
@@ -251,7 +252,7 @@ export default function BarcodeList({
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => handlePrint(barcode.barcode, barcode.productId.name, barcode.productId.price)}
+                          onClick={() => handlePrint(barcode.barcode, barcode.productId?.name ?? "", barcode.productId?.price ?? 0)}
                           className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                             isDarkMode
                               ? "bg-gray-700 text-gray-300 hover:bg-gray-600"

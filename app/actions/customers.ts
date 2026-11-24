@@ -98,6 +98,43 @@ export async function getCustomerById(id: string) {
   }
 }
 
+export interface Prescription {
+  url: string;
+  thumbUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
+  uploadedAt?: string;
+}
+
+/**
+ * POST /api/customers/prescriptions - Upload prescription images to ImgBB.
+ * Send the files in a FormData field named "files"; returns the hosted file info
+ * to put in the customer's `prescriptions` list.
+ */
+export async function uploadPrescriptions(formData: FormData) {
+  try {
+    const session = await auth();
+    // No Content-Type header: fetch sets the multipart boundary itself
+    const response = await fetch(`${API_URL}/api/customers/prescriptions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session?.accessToken}` },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      return { success: false as const, error: error.message || "Failed to upload prescription" };
+    }
+
+    const data = await response.json();
+    return { success: true as const, data: (data.files || []) as Prescription[] };
+  } catch (error) {
+    console.error("Upload prescriptions error:", error);
+    return { success: false as const, error: "Failed to upload prescription" };
+  }
+}
+
 /**
  * POST /api/customers - Create new customer
  */

@@ -217,13 +217,13 @@ const PointOFSaleDetilasPage = () => {
           const store = result.data.stores[0];
           setStoreId(store._id);
           setStoreName(store.name || "Pharmacy");
-          toast.success(`Connected to ${store.name}`);
         } else {
-          toast.error("Store not configured!");
+          // Fixed id: React Strict Mode runs this effect twice in dev, show it once
+          toast.error("Store not configured!", { id: "pos-store-error" });
         }
       } catch (error) {
         console.error("Store fetch error:", error);
-        toast.error("Failed to load store info");
+        toast.error("Failed to load store info", { id: "pos-store-error" });
       }
     };
     fetchStore();

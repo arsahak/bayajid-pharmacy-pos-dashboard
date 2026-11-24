@@ -18,7 +18,6 @@ interface BarcodePageContentProps {
   totalPages: number;
   currentPage: number;
   total: number;
-  products: any[];
   onRefresh?: () => void;
 }
 
@@ -27,7 +26,6 @@ export default function BarcodePageContent({
   totalPages,
   currentPage,
   total,
-  products,
   onRefresh,
 }: BarcodePageContentProps) {
   const { language } = useLanguage();
@@ -55,14 +53,8 @@ export default function BarcodePageContent({
         {/* Generator - Left side */}
         <div className="lg:col-span-1">
           <BarcodeGenerator
-            products={products.map((p: any) => ({
-              _id: p._id,
-              name: p.name,
-              sku: p.sku,
-              price: p.price || 0,
-              barcode: p.barcode, // Pass existing barcode
-            }))}
             language={language as "en" | "bn"}
+            onSaved={onRefresh}
           />
         </div>
 

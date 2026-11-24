@@ -1,5 +1,8 @@
 "use client";
-import { getCustomerById, updateCustomer } from "@/app/actions/customers";
+import { getCustomerById, Prescription, updateCustomer } from "@/app/actions/customers";
+import PrescriptionUpload, {
+  uploadPendingPrescriptions,
+} from "@/component/customersManagement/components/PrescriptionUpload";
 import { useSidebar } from "@/lib/SidebarContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -8,6 +11,7 @@ import {
   MdArrowBack,
   MdCancel,
   MdEmail,
+  MdLocalPharmacy,
   MdLocationOn,
   MdPerson,
   MdPhone,
@@ -29,6 +33,7 @@ interface Customer {
   };
   membershipType: "none" | "regular" | "silver" | "gold" | "platinum";
   notes?: string;
+  prescriptions?: Prescription[];
 }
 
 interface EditCustomerPageProps {
@@ -41,6 +46,10 @@ const EditCustomerPage = ({ customerId }: EditCustomerPageProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  // Prescriptions already on the customer, and new images to upload on save
+  const [savedPrescriptions, setSavedPrescriptions] = useState<Prescription[]>([]);
+  const [prescriptionFiles, setPrescriptionFiles] = useState<File[]>([]);
+  const [submitStep, setSubmitStep] = useState<"uploading" | "saving" | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -66,6 +75,7 @@ const EditCustomerPage = ({ customerId }: EditCustomerPageProps) => {
         if (result.success && result.data) {
           const customerData = result.data;
           setCustomer(customerData);
+          setSavedPrescriptions(customerData.prescriptions || []);
 
           // Populate form
           setFormData({
@@ -114,6 +124,13 @@ const EditCustomerPage = ({ customerId }: EditCustomerPageProps) => {
 
     try {
       setIsSubmitting(true);
+
+      // Upload new prescriptions first, then save them with the existing ones
+      setSubmitStep(prescriptionFiles.length > 0 ? "uploading" : "saving");
+      const uploaded = await uploadPendingPrescriptions(prescriptionFiles);
+      if (uploaded === null) return; // upload failed, error already shown
+      setSubmitStep("saving");
+
       const customerData = {
         name: formData.name.trim(),
         phone: formData.phone.trim(),
@@ -127,6 +144,7 @@ const EditCustomerPage = ({ customerId }: EditCustomerPageProps) => {
         },
         membershipType: formData.membershipType,
         notes: formData.notes.trim() || undefined,
+        prescriptions: [...savedPrescriptions, ...uploaded],
       };
 
       const data = new FormData();
@@ -145,6 +163,7 @@ const EditCustomerPage = ({ customerId }: EditCustomerPageProps) => {
       toast.error("An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
+      setSubmitStep(null);
     }
   };
 
@@ -410,6 +429,26 @@ const EditCustomerPage = ({ customerId }: EditCustomerPageProps) => {
               </div>
             </div>
 
+            {/* Prescription Section */}
+            <div className="pt-6 border-t border-gray-300 dark:border-gray-600">
+              <h2 className="text-xl font-semibold mb-1 flex items-center gap-2">
+                <MdLocalPharmacy /> Prescription (Optional)
+              </h2>
+              <p className={`text-sm mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                Add new prescription images or remove old ones. Changes are saved when you click Save Changes.
+              </p>
+              <PrescriptionUpload
+                isDarkMode={isDarkMode}
+                pending={prescriptionFiles}
+                onPendingChange={setPrescriptionFiles}
+                saved={savedPrescriptions}
+                onRemoveSaved={(index) =>
+                  setSavedPrescriptions((list) => list.filter((_, i) => i !== index))
+                }
+                disabled={isSubmitting}
+              />
+            </div>
+
             {/* Notes Section */}
             <div>
               <label className="block text-sm font-medium mb-2">
@@ -454,7 +493,7 @@ const EditCustomerPage = ({ customerId }: EditCustomerPageProps) => {
               {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Updating...
+                  {submitStep === "uploading" ? "Uploading prescription..." : "Updating..."}
                 </>
               ) : (
                 <>

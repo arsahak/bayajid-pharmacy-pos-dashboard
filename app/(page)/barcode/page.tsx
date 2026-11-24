@@ -1,11 +1,9 @@
 "use client";
 
 import { getAllBarcodes, Barcode } from "@/app/actions/barcode";
-import { getAllProducts } from "@/app/actions/product";
 import BarcodePageContent from "@/component/brcodeManagement/BarcodePageContent";
 import { BarcodePageSkeleton } from "@/component/brcodeManagement/components/BarcodePageSkeleton";
 import ProtectedRoute from "@/component/ProtectedRoute";
-import { Product } from "@/component/inventoryManagement/types";
 import { useSidebar } from "@/lib/SidebarContext";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense, useCallback } from "react";
@@ -16,22 +14,18 @@ function BarcodeContent() {
   const { isDarkMode } = useSidebar();
 
   const [barcodes, setBarcodes] = useState<Barcode[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // `loading` is only true for the first load; later reloads (after a save/delete or
+  // page change) keep the current screen so the generator keeps its state.
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    const [barcodesResult, productsResult] = await Promise.all([
-      getAllBarcodes({ page, limit: 20 }),
-      getAllProducts({ limit: 1000 }),
-    ]);
+    const barcodesResult = await getAllBarcodes({ page, limit: 20 });
 
     setBarcodes(barcodesResult.success ? barcodesResult.data?.barcodes || [] : []);
     setTotalPages(barcodesResult.success ? barcodesResult.data?.totalPages || 1 : 1);
     setTotal(barcodesResult.success ? barcodesResult.data?.total || 0 : 0);
-    setProducts(productsResult.success ? productsResult.data?.products || [] : []);
     setLoading(false);
   }, [page]);
 
@@ -53,7 +47,6 @@ function BarcodeContent() {
           totalPages={totalPages}
           currentPage={page}
           total={total}
-          products={products}
           onRefresh={handleRefresh}
         />
       )}

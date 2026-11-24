@@ -16,7 +16,6 @@ interface InvoiceModalProps {
   showInvoiceModal: boolean;
   lastInvoice: Invoice | null;
   storeName: string;
-  storeAddress?: string;
   startNewSale: () => void;
   showCashChangeOnInvoice?: boolean;
 }
@@ -25,7 +24,6 @@ export const InvoiceModal = ({
   showInvoiceModal,
   lastInvoice,
   storeName,
-  storeAddress = "Birganj, Dinajpur",
   startNewSale,
   showCashChangeOnInvoice = true,
 }: InvoiceModalProps) => {
@@ -422,23 +420,22 @@ export const InvoiceModal = ({
               </div>
 
               {/* Company Name */}
-              <h3 className="font-black text-sm uppercase tracking-wider border-b border-black pb-1 mb-1">
+              <h3 className="font-black text-sm uppercase tracking-wider mb-1">
                 {storeName}
               </h3>
 
-              {/* Proprietor & Details */}
-              <p className="text-[9px] font-semibold text-gray-800 leading-tight">
-                Pro : DMF MD BAYAJID BOSTAMI PRAN
-              </p>
-              <p className="text-[9px] font-semibold text-gray-800 leading-tight">
-                01780516773
-              </p>
-              <p className="text-[9px] font-semibold text-gray-800 leading-tight">
-                F : Bayajid Pharmacy & Surgical
-              </p>
-              <p className="text-[9px] font-semibold text-gray-800 leading-tight">
-                Wahed plaza, Tajmohol more, Birganj, Dinajpur
-              </p>
+              {/* Shop details - each line is kept short (≤ 31 characters)
+                  so nothing wraps on the 58mm receipt at this font size */}
+              <div className="text-[9px] leading-snug text-gray-800">
+                <p className="font-semibold">Senter More, Birganj, Dinajpur</p>
+                <p className="font-semibold">Mobile : 01780516773</p>
+              </div>
+
+              {/* Proprietor */}
+              <div className="mt-1 pt-1 border-t border-dashed border-gray-700 text-[9px] leading-snug text-gray-800">
+                <p className="font-semibold">Proprietor</p>
+                <p className="font-bold">DMF MD BAYAJID BOSTAMI PRAN</p>
+              </div>
             </div>
 
             {/* DUE SALE Badge */}
@@ -599,11 +596,8 @@ export const InvoiceModal = ({
             {/* Footer */}
             <div className="mt-5 text-center">
               <div className="border-t-2 border-dashed border-gray-700 pt-3 pb-2">
-                <p className="text-[9px] font-black uppercase tracking-wide mb-1">
+                <p className="text-[9px] font-black uppercase tracking-wide">
                   {t("thankYou")}
-                </p>
-                <p className="text-[9px] font-bold leading-tight">
-                  {storeAddress}
                 </p>
               </div>
               
@@ -618,6 +612,11 @@ export const InvoiceModal = ({
               </div>
               <p className="text-[7px] font-mono font-bold tracking-widest uppercase">
                 {lastInvoice.invoiceNumber}
+              </p>
+
+              {/* Developer credit */}
+              <p className="mt-2 pt-1 border-t border-dotted border-gray-500 text-[7px] font-semibold text-gray-700 leading-tight">
+                Developed by www.quitesolution.com
               </p>
             </div>
           </div>

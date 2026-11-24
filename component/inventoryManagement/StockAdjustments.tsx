@@ -15,6 +15,9 @@ import {
   MdLocationOn,
   MdSettings,
   MdClose,
+  MdEvent,
+  MdExpandMore,
+  MdTune,
 } from "react-icons/md";
 
 interface Product {
@@ -25,12 +28,40 @@ interface Product {
   category: string;
   stock: number;
   price: number;
+  expiryDate?: string;
+  minStock?: number;
+  maxStock?: number;
   location?: {
     shelf?: string;
     bin?: string;
     aisle?: string;
   } | string;
 }
+
+const COMMON_REASONS = [
+  "Damaged",
+  "Expired",
+  "Theft",
+  "Lost",
+  "Count Correction",
+  "Return to Supplier",
+  "Customer Return",
+  "Stock Transfer",
+  "Initial Stock",
+  "Promotion",
+];
+
+/** Today as YYYY-MM-DD (local time), for the date picker's minimum */
+const todayInputValue = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString();
+};
 
 // Skeleton Component
 const AdjustmentsSkeleton = ({ isDarkMode }: { isDarkMode: boolean }) => {
@@ -81,8 +112,11 @@ const StockAdjustments = () => {
   const [quantity, setQuantity] = useState(0);
   const [reason, setReason] = useState("");
   const [location, setLocation] = useState("");
-  const [minStock, setMinStock] = useState(10);
-  const [maxStock, setMaxStock] = useState(1000);
+  const [expiryDate, setExpiryDate] = useState("");
+  // "More options": empty = keep the product's current min/max stock
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [minStock, setMinStock] = useState("");
+  const [maxStock, setMaxStock] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -172,6 +206,11 @@ const StockAdjustments = () => {
       return;
     }
 
+    if (adjustmentType === "add" && expiryDate && expiryDate < todayInputValue()) {
+      toast.error("Expiry date cannot be in the past");
+      return;
+    }
+
     setLoading(true);
     try {
       const adjustmentQty = adjustmentType === "add" ? quantity : -quantity;
@@ -182,8 +221,11 @@ const StockAdjustments = () => {
       formData.append("adjustment", adjustmentQty.toString());
       formData.append("reason", reason);
       formData.append("location", location);
-      formData.append("minStock", minStock.toString());
-      formData.append("maxStock", maxStock.toString());
+      // Expiry only when adding stock; it updates the product's expiry date
+      if (adjustmentType === "add" && expiryDate) formData.append("expiryDate", expiryDate);
+      // Only change min/max stock when the user filled them in
+      if (minStock.trim() !== "") formData.append("minStock", minStock);
+      if (maxStock.trim() !== "") formData.append("maxStock", maxStock);
 
       const result = await adjustInventory(formData);
 
@@ -195,8 +237,10 @@ const StockAdjustments = () => {
         setQuantity(0);
         setReason("");
         setLocation("");
-        setMinStock(10);
-        setMaxStock(1000);
+        setExpiryDate("");
+        setMinStock("");
+        setMaxStock("");
+        setShowMoreOptions(false);
       } else {
         toast.error(result.error || "Failed to adjust stock");
       }
@@ -207,6 +251,15 @@ const StockAdjustments = () => {
       setLoading(false);
     }
   };
+
+  const labelClass = `block text-sm font-medium mb-2 ${
+    isDarkMode ? "text-gray-300" : "text-gray-700"
+  }`;
+  const inputClass = `w-full px-4 py-2.5 rounded-xl border-2 transition-colors ${
+    isDarkMode
+      ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400 hover:border-gray-500"
+      : "bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400"
+  } focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none`;
 
   return (
     <div
@@ -261,24 +314,46 @@ const StockAdjustments = () => {
               </h2>
 
               <form onSubmit={handleSubmit}>
-                {/* Store Selection */}
-                <div className="mb-4">
-                  <label
-                    className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                {/* Adjustment Type */}
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustmentType("add")}
+                    className={`px-4 py-3 rounded-xl border-2 font-semibold flex items-center justify-center gap-2 transition-all ${
+                      adjustmentType === "add"
+                        ? "bg-green-600 border-green-600 text-white shadow-lg shadow-green-500/30"
+                        : isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500"
+                        : "bg-gray-50 border-gray-300 text-gray-700 hover:border-gray-400"
                     }`}
                   >
-                    Store *
-                  </label>
+                    <MdAdd className="text-xl" />
+                    Add Stock
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustmentType("remove")}
+                    className={`px-4 py-3 rounded-xl border-2 font-semibold flex items-center justify-center gap-2 transition-all ${
+                      adjustmentType === "remove"
+                        ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-500/30"
+                        : isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500"
+                        : "bg-gray-50 border-gray-300 text-gray-700 hover:border-gray-400"
+                    }`}
+                  >
+                    <MdRemove className="text-xl" />
+                    Remove Stock
+                  </button>
+                </div>
+
+                {/* Store Selection */}
+                <div className="mb-4">
+                  <label className={labelClass}>Store *</label>
                   <select
                     value={selectedStore}
                     onChange={(e) => setSelectedStore(e.target.value)}
                     required
-                    className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors ${
-                      isDarkMode
-                        ? "bg-gray-700 border-gray-600 text-gray-100 hover:border-gray-500"
-                        : "bg-gray-50 border-gray-300 text-gray-900 hover:border-gray-400"
-                    } focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none`}
+                    className={inputClass}
                   >
                     <option value="">Select Store</option>
                     {stores.map((store) => (
@@ -291,13 +366,7 @@ const StockAdjustments = () => {
 
                 {/* Product Search */}
                 <div className="mb-4">
-                  <label
-                    className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Search Product *
-                  </label>
+                  <label className={labelClass}>Search Product *</label>
                   <div className="relative">
                     <MdSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
                     <input
@@ -305,12 +374,8 @@ const StockAdjustments = () => {
                       placeholder="Search by name, SKU, or barcode..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), searchProducts())}
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-xl border-2 transition-colors ${
-                        isDarkMode
-                          ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400 hover:border-gray-500"
-                          : "bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400"
-                      } focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none`}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), searchProducts())}
+                      className={`${inputClass} pl-10`}
                     />
                     {searchLoading && (
                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -345,7 +410,8 @@ const StockAdjustments = () => {
                             {product.name}
                           </p>
                           <p className="text-xs text-gray-500">
-                            SKU: {product.sku} | Current Stock: {product.stock || 0}
+                            SKU: {product.sku || "N/A"} | Current Stock: {product.stock || 0}
+                            {formatDate(product.expiryDate) && ` | Exp: ${formatDate(product.expiryDate)}`}
                           </p>
                         </button>
                       ))}
@@ -375,7 +441,8 @@ const StockAdjustments = () => {
                           {selectedProduct.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          SKU: {selectedProduct.sku} | Current Stock: {selectedProduct.stock || 0}
+                          SKU: {selectedProduct.sku || "N/A"} | Current Stock: {selectedProduct.stock || 0} | Expiry:{" "}
+                          {formatDate(selectedProduct.expiryDate) || "N/A"}
                         </p>
                       </div>
                       <button
@@ -389,159 +456,154 @@ const StockAdjustments = () => {
                   </div>
                 )}
 
-                {/* Adjustment Type */}
-                <div className="mb-4">
-                  <label
-                    className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Adjustment Type *
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setAdjustmentType("add")}
-                      className={`px-4 py-3 rounded-xl border-2 font-semibold flex items-center justify-center gap-2 transition-all ${
-                        adjustmentType === "add"
-                          ? "bg-green-600 border-green-600 text-white shadow-lg shadow-green-500/30"
-                          : isDarkMode
-                          ? "bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500"
-                          : "bg-gray-50 border-gray-300 text-gray-700 hover:border-gray-400"
-                      }`}
-                    >
-                      <MdAdd className="text-xl" />
-                      Add Stock
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAdjustmentType("remove")}
-                      className={`px-4 py-3 rounded-xl border-2 font-semibold flex items-center justify-center gap-2 transition-all ${
-                        adjustmentType === "remove"
-                          ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-500/30"
-                          : isDarkMode
-                          ? "bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500"
-                          : "bg-gray-50 border-gray-300 text-gray-700 hover:border-gray-400"
-                      }`}
-                    >
-                      <MdRemove className="text-xl" />
-                      Remove Stock
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quantity */}
-                <div className="mb-4">
-                  <label
-                    className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Quantity *
-                  </label>
-                  <input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Math.abs(parseInt(e.target.value) || 0))}
-                    min="0"
-                    required
-                    className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors ${
-                      isDarkMode
-                        ? "bg-gray-700 border-gray-600 text-gray-100 hover:border-gray-500"
-                        : "bg-gray-50 border-gray-300 text-gray-900 hover:border-gray-400"
-                    } focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none`}
-                  />
-                </div>
-
-                {/* Location */}
-                <div className="mb-4">
-                  <label
-                    className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Storage Location
-                  </label>
-                  <div className="relative">
-                    <MdLocationOn className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
-                    <input
-                      type="text"
-                      placeholder="e.g., Shelf A1, Warehouse 2"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-xl border-2 transition-colors ${
-                        isDarkMode
-                          ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400 hover:border-gray-500"
-                          : "bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400"
-                      } focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none`}
-                    />
-                  </div>
-                </div>
-
-                {/* Min/Max Stock */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                {/* Quantity | Expiry (add only) | Location */}
+                <div
+                  className={`grid grid-cols-1 gap-3 mb-4 ${
+                    adjustmentType === "add" ? "sm:grid-cols-3" : "sm:grid-cols-2"
+                  }`}
+                >
                   <div>
-                    <label
-                      className={`block text-sm font-medium mb-2 ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
-                      Min Stock
-                    </label>
+                    <label className={labelClass}>Quantity *</label>
                     <input
                       type="number"
-                      value={minStock}
-                      onChange={(e) => setMinStock(parseInt(e.target.value) || 0)}
+                      value={quantity}
+                      onChange={(e) => setQuantity(Math.abs(parseInt(e.target.value) || 0))}
                       min="0"
-                      className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors ${
-                        isDarkMode
-                          ? "bg-gray-700 border-gray-600 text-gray-100 hover:border-gray-500"
-                          : "bg-gray-50 border-gray-300 text-gray-900 hover:border-gray-400"
-                      } focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none`}
+                      required
+                      className={inputClass}
                     />
                   </div>
+
+                  {adjustmentType === "add" && (
+                    <div>
+                      <label className={labelClass}>Expiry Date</label>
+                      <div className="relative">
+                        <MdEvent className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl pointer-events-none" />
+                        <input
+                          type="date"
+                          value={expiryDate}
+                          min={todayInputValue()}
+                          onChange={(e) => setExpiryDate(e.target.value)}
+                          className={`${inputClass} pl-10`}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div>
-                    <label
-                      className={`block text-sm font-medium mb-2 ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
-                      Max Stock
-                    </label>
-                    <input
-                      type="number"
-                      value={maxStock}
-                      onChange={(e) => setMaxStock(parseInt(e.target.value) || 0)}
-                      min="0"
-                      className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors ${
-                        isDarkMode
-                          ? "bg-gray-700 border-gray-600 text-gray-100 hover:border-gray-500"
-                          : "bg-gray-50 border-gray-300 text-gray-900 hover:border-gray-400"
-                      } focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none`}
-                    />
+                    <label className={labelClass}>Location</label>
+                    <div className="relative">
+                      <MdLocationOn className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
+                      <input
+                        type="text"
+                        placeholder="e.g., Shelf A1"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className={`${inputClass} pl-10`}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Reason */}
-                <div className="mb-6">
-                  <label
-                    className={`block text-sm font-medium mb-2 ${
+                {adjustmentType === "add" && (
+                  <p className={`-mt-2 mb-4 text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                    Expiry date is optional. If set, it replaces the product&apos;s current expiry date.
+                  </p>
+                )}
+
+                {/* More options */}
+                <div
+                  className={`mb-6 rounded-xl border-2 ${
+                    isDarkMode ? "border-gray-700" : "border-gray-200"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setShowMoreOptions((v) => !v)}
+                    aria-expanded={showMoreOptions}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-sm font-semibold ${
                       isDarkMode ? "text-gray-300" : "text-gray-700"
                     }`}
                   >
-                    Reason for Adjustment
-                  </label>
-                  <textarea
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="e.g., Damaged goods, Theft, Count correction, Returned items"
-                    rows={3}
-                    className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors ${
-                      isDarkMode
-                        ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400 hover:border-gray-500"
-                        : "bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400"
-                    } focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none`}
-                  />
+                    <span className="flex items-center gap-2">
+                      <MdTune className="text-lg text-indigo-500" />
+                      More options
+                      <span className={`font-normal ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>
+                        (Min/Max stock, Reason)
+                      </span>
+                    </span>
+                    <MdExpandMore
+                      className={`text-xl transition-transform ${showMoreOptions ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {showMoreOptions && (
+                    <div className="px-4 pb-4 space-y-4">
+                      {/* Min/Max Stock */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className={labelClass}>Min Stock</label>
+                          <input
+                            type="number"
+                            value={minStock}
+                            onChange={(e) => setMinStock(e.target.value)}
+                            min="0"
+                            placeholder={
+                              selectedProduct?.minStock !== undefined
+                                ? `Current: ${selectedProduct.minStock}`
+                                : "Keep current"
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Max Stock</label>
+                          <input
+                            type="number"
+                            value={maxStock}
+                            onChange={(e) => setMaxStock(e.target.value)}
+                            min="0"
+                            placeholder={
+                              selectedProduct?.maxStock !== undefined
+                                ? `Current: ${selectedProduct.maxStock}`
+                                : "Keep current"
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Reason */}
+                      <div>
+                        <label className={labelClass}>Reason for Adjustment</label>
+                        <textarea
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                          placeholder="e.g., Damaged goods, Theft, Count correction, Returned items"
+                          rows={2}
+                          className={inputClass}
+                        />
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {COMMON_REASONS.map((r) => (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => setReason(r)}
+                              className={`px-2.5 py-1 rounded-lg text-xs border font-medium transition-all ${
+                                reason === r
+                                  ? "bg-indigo-600 text-white border-indigo-600"
+                                  : isDarkMode
+                                  ? "bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600"
+                                  : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
+                              }`}
+                            >
+                              {r}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Submit Button */}
@@ -561,7 +623,7 @@ const StockAdjustments = () => {
                   ) : (
                     <>
                       <MdSave />
-                      {adjustmentType === "add" ? "Add Stock" : "Remove Stock"}
+                      {adjustmentType === "add" ? "Save · Add Stock" : "Save · Remove Stock"}
                     </>
                   )}
                 </button>
@@ -603,62 +665,25 @@ const StockAdjustments = () => {
                       Use for damaged items, theft, spoilage, or corrections for overcount.
                     </p>
                   </div>
+                  <div className="p-3 rounded-xl bg-blue-100 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                    <p className="font-semibold text-blue-700 dark:text-blue-400 mb-1">
+                      Expiry Date
+                    </p>
+                    <p className="text-sm text-blue-600 dark:text-blue-500">
+                      Only when adding stock. The date you enter becomes the product&apos;s expiry date.
+                    </p>
+                  </div>
                   <div className="p-3 rounded-xl bg-orange-100 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
                     <p className="font-semibold text-orange-700 dark:text-orange-400 mb-1">
-                      Min/Max Stock
+                      More options
                     </p>
                     <p className="text-sm text-orange-600 dark:text-orange-500">
-                      Set minimum and maximum stock levels to trigger alerts.
+                      Min/Max stock levels and the reason. Leave Min/Max empty to keep the current values.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Common Reasons */}
-              <div
-                className={`rounded-2xl border p-6 shadow-xl ${
-                  isDarkMode
-                    ? "bg-gray-800 border-gray-700"
-                    : "bg-white border-gray-100"
-                }`}
-              >
-                <h3
-                  className={`text-lg font-bold mb-4 ${
-                    isDarkMode ? "text-gray-100" : "text-gray-900"
-                  }`}
-                >
-                  Common Reasons
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    "Damaged",
-                    "Expired",
-                    "Theft",
-                    "Lost",
-                    "Count Correction",
-                    "Return to Supplier",
-                    "Customer Return",
-                    "Stock Transfer",
-                    "Initial Stock",
-                    "Promotion",
-                  ].map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setReason(r)}
-                      className={`px-3 py-1.5 rounded-lg text-sm border-2 font-medium transition-all ${
-                        reason === r
-                          ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/30"
-                          : isDarkMode
-                          ? "bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600"
-                          : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
-                      }`}
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         )}

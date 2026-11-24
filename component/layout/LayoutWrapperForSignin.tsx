@@ -21,7 +21,7 @@ export default function LayoutWrapperForSignin({
           />
           
           {/* Overlay gradient for better contrast */}
-          <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/50 to-white/70 backdrop-blur-[1px]" />
+          <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/50 to-white/70 dark:from-black/50 dark:via-black/60 dark:to-black/70 backdrop-blur-[1px]" />
           
           {/* Sign-in form on top */}
           <div className="relative z-10 min-h-screen flex items-center justify-center p-4">

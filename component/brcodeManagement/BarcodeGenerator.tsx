@@ -1,109 +1,133 @@
 "use client";
 
-import { createBarcode, generateBarcode } from "@/app/actions/barcode";
+import { generateBarcode } from "@/app/actions/barcode";
+import { getAllProducts } from "@/app/actions/product";
 import { printBarcode } from "@/lib/printUtils";
 import { useSidebar } from "@/lib/SidebarContext";
 import { getTranslation } from "@/lib/translations";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { BiBarcodeReader } from "react-icons/bi";
-import { MdAdd, MdClose, MdPrint, MdSearch } from "react-icons/md";
+import { MdCheckCircle, MdClose, MdPrint, MdSearch } from "react-icons/md";
 
 interface Product {
   _id: string;
   name: string;
-  sku: string;
-  price: number;
+  sku?: string;
+  price?: number;
+  stock?: number;
+  unit?: string;
   barcode?: string;
 }
 
+const NA = "N/A";
+
+// Show a value, or "N/A" when it is missing
+const formatPrice = (price?: number) =>
+  typeof price === "number" && !Number.isNaN(price) ? `৳${price.toFixed(2)}` : NA;
+const formatQuantity = (stock?: number, unit?: string) =>
+  typeof stock === "number" && !Number.isNaN(stock) ? `${stock}${unit ? ` ${unit}` : ""}` : NA;
+
 interface BarcodeGeneratorProps {
-  products: Product[];
   language: "en" | "bn";
+  /** Reload the barcode list after a barcode is saved */
+  onSaved?: () => void;
 }
 
-export default function BarcodeGenerator({ products, language }: BarcodeGeneratorProps) {
+const SEARCH_LIMIT = 50;
+
+export default function BarcodeGenerator({ language, onSaved }: BarcodeGeneratorProps) {
   const { isDarkMode } = useSidebar();
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [selectedProduct, setSelectedProduct] = useState("");
+  // The product the user picked from the search results
+  const [selectedProductObj, setSelectedProductObj] = useState<Product | null>(null);
+  const selectedProduct = selectedProductObj?._id ?? "";
   const [generatedBarcode, setGeneratedBarcode] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Auto-load existing barcode
+  // Search the whole catalogue on the server (debounced) instead of a preloaded list,
+  // so every product can be found no matter how many there are.
   useEffect(() => {
-    if (selectedProduct) {
-      const product = products.find(p => p._id === selectedProduct);
-      if (product?.barcode) {
-        setGeneratedBarcode(product.barcode);
-      } else {
-        setGeneratedBarcode("");
-      }
-    } else {
-      setGeneratedBarcode("");
-    }
-  }, [selectedProduct, products]);
+    const term = searchTerm.trim();
+    if (!term || selectedProduct) return;
 
-  const selectedProductObj = products.find(p => p._id === selectedProduct);
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const result = await getAllProducts({ search: term, limit: SEARCH_LIMIT, view: "pos" });
+      if (cancelled) return;
+      const found: Product[] = result.success
+        ? (result.data?.products || []).map((p: Product) => ({
+            _id: p._id,
+            name: p.name,
+            sku: p.sku,
+            price: p.price,
+            stock: p.stock,
+            unit: p.unit,
+            barcode: p.barcode,
+          }))
+        : [];
+      setSearchResults(found);
+      setIsSearching(false);
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchTerm, selectedProduct]);
+
+  // Pick (or clear) a product; shows its existing barcode if it already has one
+  const selectProduct = (product: Product | null) => {
+    setSelectedProductObj(product);
+    setGeneratedBarcode(product?.barcode || "");
+  };
+
   const isExistingBarcode = selectedProductObj?.barcode === generatedBarcode && !!generatedBarcode;
 
+  // Generate a new barcode and save it to the selected product in one step
   const handleGenerate = async () => {
-    if (!selectedProduct) {
+    if (!selectedProductObj) {
       toast.error(getTranslation("pleaseSelectProduct", language));
       return;
     }
 
+    const hasBarcode = !!selectedProductObj.barcode;
+    if (
+      hasBarcode &&
+      !confirm(
+        `${selectedProductObj.name} already has barcode ${selectedProductObj.barcode}.\n` +
+          "Replace it with a new one? Labels printed with the old barcode will stop scanning."
+      )
+    ) {
+      return;
+    }
+
     setIsGenerating(true);
-    const result = await generateBarcode(selectedProduct);
+    const result = await generateBarcode(selectedProductObj._id, hasBarcode);
 
     if (result.success) {
-      setGeneratedBarcode(result.data.barcode);
-      toast.success(getTranslation("barcodeGeneratedSuccess", language));
+      const newBarcode: string = result.data.barcode;
+      // The backend has already saved it on the product
+      setSelectedProductObj((prev) => (prev ? { ...prev, barcode: newBarcode } : prev));
+      setGeneratedBarcode(newBarcode);
+      toast.success(
+        hasBarcode
+          ? `New barcode saved to ${selectedProductObj.name}`
+          : getTranslation("barcodeSavedSuccess", language)
+      );
+      onSaved?.();
     } else {
       toast.error(result.error || getTranslation("failedToGenerateBarcode", language));
     }
     setIsGenerating(false);
   };
 
-  const handleSave = async () => {
-    if (!generatedBarcode || !selectedProduct) {
-      toast.error(getTranslation("pleaseGenerateFirst", language));
-      return;
-    }
-
-    // Prevent saving if it's the same existing barcode
-    if (isExistingBarcode) {
-        toast.error("This barcode is already saved for this product.");
-        return;
-    }
-
-    setIsSaving(true);
-    const result = await createBarcode({
-      barcode: generatedBarcode,
-      productId: selectedProduct,
-      type: "EAN13",
-    });
-
-    if (result.success) {
-      toast.success(getTranslation("barcodeSavedSuccess", language));
-      // update effectively happens via router refresh
-      startTransition(() => {
-        router.refresh();
-      });
-    } else {
-      toast.error(result.error || getTranslation("failedToSaveBarcode", language));
-    }
-    setIsSaving(false);
-  };
-
   const handlePrint = () => {
-    const product = products.find((p) => p._id === selectedProduct);
-    if (product && generatedBarcode) {
-      printBarcode(generatedBarcode, product.name, product.price);
+    if (selectedProductObj && generatedBarcode) {
+      printBarcode(generatedBarcode, selectedProductObj.name, selectedProductObj.price ?? 0);
     }
   };
 
@@ -142,7 +166,8 @@ export default function BarcodeGenerator({ products, language }: BarcodeGenerato
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setSelectedProduct(""); // Clear selection on type
+                  selectProduct(null); // Clear selection on type
+                  setIsSearching(!!e.target.value.trim());
                   setIsDropdownOpen(true);
                 }}
                 onFocus={() => setIsDropdownOpen(true)}
@@ -157,7 +182,7 @@ export default function BarcodeGenerator({ products, language }: BarcodeGenerato
                  <button 
                    onClick={() => {
                      setSearchTerm("");
-                     setSelectedProduct("");
+                     selectProduct(null);
                    }}
                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-500"
                  >
@@ -171,16 +196,16 @@ export default function BarcodeGenerator({ products, language }: BarcodeGenerato
               <div className={`absolute z-20 w-full mt-1 rounded-lg border shadow-lg max-h-60 overflow-y-auto ${
                  isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
               }`}>
-                 {products
-                   .filter(p => 
-                      (p.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) || 
-                      (p.sku?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-                   )
-                   .map(product => (
+                 {isSearching && (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                       Searching...
+                    </div>
+                 )}
+                 {!isSearching && searchResults.map(product => (
                      <button
                        key={product._id}
                        onClick={() => {
-                         setSelectedProduct(product._id);
+                         selectProduct(product);
                          setSearchTerm(product.name);
                          setIsDropdownOpen(false);
                        }}
@@ -188,18 +213,38 @@ export default function BarcodeGenerator({ products, language }: BarcodeGenerato
                          isDarkMode ? "border-gray-700 text-gray-200" : "border-gray-100 text-gray-800"
                        }`}
                      >
-                       <div className="font-medium">{product.name}</div>
-                       <div className="text-xs text-gray-500">
-                           sku: {product.sku || "N/A"}
-                           {product.barcode && <span className="ml-2 text-green-500 font-bold text-[10px]">(Has Barcode)</span>}
+                       <div className="font-medium">{product.name || NA}</div>
+                       <div className={`mt-1 grid grid-cols-3 gap-2 text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                         <div>
+                           <span className="block text-[10px] uppercase tracking-wide opacity-70">Quantity</span>
+                           <span className={isDarkMode ? "text-gray-200" : "text-gray-700"}>
+                             {formatQuantity(product.stock, product.unit)}
+                           </span>
+                         </div>
+                         <div>
+                           <span className="block text-[10px] uppercase tracking-wide opacity-70">Price</span>
+                           <span className={isDarkMode ? "text-gray-200" : "text-gray-700"}>
+                             {formatPrice(product.price)}
+                           </span>
+                         </div>
+                         <div className="min-w-0">
+                           <span className="block text-[10px] uppercase tracking-wide opacity-70">Barcode</span>
+                           <span
+                             className={`block truncate font-mono ${
+                               product.barcode
+                                 ? isDarkMode ? "text-green-400" : "text-green-600"
+                                 : isDarkMode ? "text-gray-500" : "text-gray-400"
+                             }`}
+                             title={product.barcode || NA}
+                           >
+                             {product.barcode || NA}
+                           </span>
+                         </div>
                        </div>
                      </button>
                    ))}
                    {/* Empty State */}
-                   {products.filter(p => 
-                      (p.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) || 
-                      (p.sku?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-                   ).length === 0 && (
+                   {!isSearching && searchResults.length === 0 && (
                       <div className="p-4 text-center text-sm text-gray-500">
                          No products found
                       </div>
@@ -237,7 +282,11 @@ export default function BarcodeGenerator({ products, language }: BarcodeGenerato
               }`}
             >
               <span>{getTranslation("generatedBarcode", language)}</span>
-              {isExistingBarcode && <span className="text-green-500 font-bold bg-green-100 dark:bg-green-900/30 px-2 rounded text-xs py-0.5">Already Saved</span>}
+              {isExistingBarcode && (
+                <span className="inline-flex items-center gap-1 text-green-600 font-bold bg-green-100 dark:bg-green-900/30 dark:text-green-400 px-2 rounded text-xs py-0.5">
+                  <MdCheckCircle /> Saved to product
+                </span>
+              )}
             </p>
             <div className="flex items-center justify-center py-6 bg-white rounded-lg border">
               <div className="text-center">
@@ -249,24 +298,10 @@ export default function BarcodeGenerator({ products, language }: BarcodeGenerato
             </div>
 
             <div className="flex gap-3 mt-4">
-              {/* Save Button */}
-              <button
-                onClick={handleSave}
-                disabled={isSaving || isExistingBarcode}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  isDarkMode
-                    ? "bg-green-600 hover:bg-green-700 text-white"
-                    : "bg-green-500 hover:bg-green-600 text-white"
-                } disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
-              >
-                <MdAdd className="w-5 h-5" />
-                {isSaving ? getTranslation("saving", language) : (isExistingBarcode ? "Saved" : getTranslation("saveBarcode", language))}
-              </button>
-
               {/* Print Button */}
               <button
                 onClick={handlePrint}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
                   isDarkMode
                     ? "bg-gray-600 hover:bg-gray-500 text-white"
                     : "bg-white border border-gray-300 hover:bg-gray-50 text-gray-700"

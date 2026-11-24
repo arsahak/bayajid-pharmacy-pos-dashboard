@@ -1,5 +1,8 @@
 "use client";
 import { createCustomer } from "@/app/actions/customers";
+import PrescriptionUpload, {
+  uploadPendingPrescriptions,
+} from "@/component/customersManagement/components/PrescriptionUpload";
 import { useSidebar } from "@/lib/SidebarContext";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -8,6 +11,7 @@ import {
   MdArrowBack,
   MdCancel,
   MdEmail,
+  MdLocalPharmacy,
   MdLocationOn,
   MdPerson,
   MdPhone,
@@ -18,6 +22,9 @@ const CreateCustomerPage = () => {
   const { isDarkMode } = useSidebar();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Prescription images chosen in the form; uploaded to ImgBB on submit
+  const [prescriptionFiles, setPrescriptionFiles] = useState<File[]>([]);
+  const [submitStep, setSubmitStep] = useState<"uploading" | "saving" | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -49,6 +56,13 @@ const CreateCustomerPage = () => {
 
     try {
       setIsSubmitting(true);
+
+      // Upload prescriptions first so the customer is saved with their links
+      setSubmitStep(prescriptionFiles.length > 0 ? "uploading" : "saving");
+      const prescriptions = await uploadPendingPrescriptions(prescriptionFiles);
+      if (prescriptions === null) return; // upload failed, error already shown
+      setSubmitStep("saving");
+
       const customerData = {
         name: formData.name.trim(),
         phone: formData.phone.trim(),
@@ -62,6 +76,7 @@ const CreateCustomerPage = () => {
         },
         membershipType: formData.membershipType,
         notes: formData.notes.trim() || undefined,
+        prescriptions: prescriptions.length > 0 ? prescriptions : undefined,
       };
 
       const data = new FormData();
@@ -80,6 +95,7 @@ const CreateCustomerPage = () => {
       toast.error("An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
+      setSubmitStep(null);
     }
   };
 
@@ -339,6 +355,22 @@ const CreateCustomerPage = () => {
               </div>
             </div>
 
+            {/* Prescription Section */}
+            <div className="pt-6 border-t border-gray-300 dark:border-gray-600">
+              <h2 className="text-xl font-semibold mb-1 flex items-center gap-2">
+                <MdLocalPharmacy /> Prescription (Optional)
+              </h2>
+              <p className={`text-sm mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                Upload photos or scans of the customer&apos;s prescription.
+              </p>
+              <PrescriptionUpload
+                isDarkMode={isDarkMode}
+                pending={prescriptionFiles}
+                onPendingChange={setPrescriptionFiles}
+                disabled={isSubmitting}
+              />
+            </div>
+
             {/* Notes Section */}
             <div>
               <label className="block text-sm font-medium mb-2">
@@ -383,7 +415,7 @@ const CreateCustomerPage = () => {
               {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Creating...
+                  {submitStep === "uploading" ? "Uploading prescription..." : "Creating..."}
                 </>
               ) : (
                 <>

@@ -18,7 +18,7 @@ export interface Barcode {
   productId: {
     _id: string;
     name: string;
-    sku: string;
+    sku?: string;
     price: number;
     image?: string;
   };
@@ -42,15 +42,16 @@ export interface BarcodeListResponse {
 }
 
 /**
- * Generate a new unique barcode for a product
+ * Generate a new unique barcode for a product and save it to that product.
+ * Pass replace = true when the product already has a barcode.
  */
-export async function generateBarcode(productId: string) {
+export async function generateBarcode(productId: string, replace = false) {
   try {
     const headers = await getAuthHeaders();
     const response = await fetch(`${API_URL}/api/barcodes/generate`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ productId }),
+      body: JSON.stringify({ productId, replace }),
       cache: "no-store",
     });
 

@@ -138,6 +138,8 @@ export async function adjustInventory(formData: FormData) {
       location: formData.get("location") as string || undefined,
       minStock: minStock,
       maxStock: maxStock,
+      // Only sent when adding stock; becomes the product's expiry date
+      expiryDate: (formData.get("expiryDate") as string) || undefined,
     };
 
     console.log("Adjusting inventory - Data:", adjustmentData);

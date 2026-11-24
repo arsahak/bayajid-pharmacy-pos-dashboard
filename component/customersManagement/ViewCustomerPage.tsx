@@ -1,5 +1,5 @@
 "use client";
-import { getCustomerById, updateCustomer, deleteCustomer } from "@/app/actions/customers";
+import { getCustomerById, updateCustomer, deleteCustomer, Prescription } from "@/app/actions/customers";
 import { useSidebar } from "@/lib/SidebarContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -10,6 +10,7 @@ import {
   MdDelete,
   MdEdit,
   MdEmail,
+  MdLocalPharmacy,
   MdLocationOn,
   MdLockOpen,
   MdPerson,
@@ -36,6 +37,7 @@ interface Customer {
   visitCount: number;
   lastVisit?: string;
   notes?: string;
+  prescriptions?: Prescription[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -361,6 +363,51 @@ const ViewCustomerPage = ({ customerId }: ViewCustomerPageProps) => {
                 </div>
               </div>
             )}
+
+            {/* Prescriptions */}
+            <div className="pt-4 border-t border-gray-300 dark:border-gray-600">
+              <div className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                <MdLocalPharmacy /> Prescriptions
+                {customer.prescriptions && customer.prescriptions.length > 0 && (
+                  <span>({customer.prescriptions.length})</span>
+                )}
+              </div>
+              {customer.prescriptions && customer.prescriptions.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {customer.prescriptions.map((item) => (
+                    <a
+                      key={item.url}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open full size"
+                      className={`block rounded-lg border overflow-hidden hover:ring-2 hover:ring-blue-500 transition ${
+                        isDarkMode ? "border-gray-600 bg-gray-700" : "border-gray-200 bg-gray-50"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.thumbUrl || item.url}
+                        alt={item.fileName || "Prescription"}
+                        className="w-full h-28 object-cover"
+                      />
+                      <div className={`px-2 py-1 text-xs ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                        <div className="truncate">{item.fileName || "Prescription"}</div>
+                        {item.uploadedAt && (
+                          <div className="text-[10px] text-gray-500">
+                            {new Date(item.uploadedAt).toLocaleDateString()}
+                          </div>
+                        )}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className={`p-3 rounded-lg text-sm ${isDarkMode ? "bg-gray-700 text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+                  No prescription uploaded
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
